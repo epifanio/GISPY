@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.ipynb
+venv/
+.ipynb_checkpoints/
+.idea/
+countries.geojson
+europe_110.geo.json
+
+.*
+*~
+
