@@ -1,0 +1,8 @@
+dependencies:
+  - bokeh
+  - owslib
+  - ipyleaflet
+  - ipywidgets_bokeh
+  - pip
+  - pip:
+    - jupyter-server-proxy
