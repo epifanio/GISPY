@@ -1,27 +1,94 @@
-from map_util import get_center, ztwms_control
+from ipygis import get_center, ztwms_control, move_buttons
 from bokeh.plotting import curdoc
 from ipyleaflet import Map, WMSLayer, LayersControl, WidgetControl, basemaps, FullScreenControl, LayersControl, \
     MeasureControl
-from ipywidgets import Box, VBox, Layout, HTML, Dropdown
+from ipywidgets import Box, VBox, HBox, Layout, HTML, Dropdown, Button
 from ipywidgets_bokeh import IPyWidget
 from bokeh.layouts import column, row, widgetbox, layout
 from projections import get_common_crs, get_projection
+import time
+
+# import ipyvuetify as v
 
 global m
-m = {}
 global ztwms_controls
+global wms_urls
+
 curdoc_element = curdoc()
 args = curdoc_element.session_context.request.arguments
 
 wms_urls = [i.decode() for i in args.get('url')]
+
 common_crs = get_common_crs(wms_urls)
-ztwms_controls = [ztwms_control(i, 4326) for i in wms_urls]
-wms_url = str(args.get('url')[0].decode())  # wms_urls[0]
-ztwms = ztwms_control(wms_url, 4326)
+
+import ipywidgets as widgets
+
+class print_button(widgets.Button):
+    def __init__(self, m=None, index=None):
+        self.button = widgets.Button(description="Click Me!")
+        self.index = index
+
+    def on_button_clicked(self, index):
+        index = self.index
+        print(self.index)
+
+    def get_button(self):
+        self.button.on_click(self.on_button_clicked)
+        return self.button
+
+def get_basemap(wms_url, crs, center=None, zoom=None):
+    global m
+    prj_dict = get_projection(crs)
+    wms_baselayer = WMSLayer(
+        url='https://public-wms.met.no/backgroundmaps/northpole.map?bgcolor=0x6699CC&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities',
+        layers="world",
+        format="image/png",
+        transparent=True,
+        min_zoom=1,
+        crs=prj_dict,
+    )
+    if not center:
+        center = [0.0, 0.0]
+    if not zoom:
+        zoom = 5
+    m = Map(basemap=wms_baselayer, center=center, scroll_wheel_zoom=True, crs=prj_dict, zoom=zoom)
+    m.layout.width = '90%'
+    m.layout.height = '95%'
+    layers_control = LayersControl(position='topright')
+    m.add_control(FullScreenControl())
+    m.add_control(layers_control)
+
+    measure = MeasureControl(
+        position='bottomleft',
+        active_color='orange',
+        primary_length_unit='kilometers'
+    )
+    m.add_control(measure)
+    m.on_interaction(handle_interaction)
+    return m
 
 
-def get_widget_state():
-    state={}
+#  = [ztwms_control(i, int(common_crs[0].split(':')[1]), m=m) for i in wms_urls]
+
+def update_map(m, ztwms_controls, crs):
+    prj_dict = get_projection(crs)
+    for i in ztwms_controls:
+        i.ztwms.crs = prj_dict
+        m.add_layer(i.ztwms)
+    m.center = get_center(ztwms_controls[0].wms)
+    return m
+
+
+# ztwms = ztwms_controls[0]
+
+form_layout = Layout(
+    display='flex',
+    flex_flow='row',
+    justify_content='space-between',
+    height='100%',
+    width='100%',
+)
+
 
 def handle_interaction(**kwargs):
     # mouseup, mouseover, mousemove, preclick, click
@@ -39,20 +106,12 @@ def handle_interaction(**kwargs):
     if kwargs.get('type') == 'mousedown':
         print(m.bounds, ztwms_controls)
         for i in ztwms_controls:
+            print('type widget: ', str(type(i.wms_control.children[0].children[1])))
             print('layer: ', str(i.wms_control.children[1].value).strip())
             print('opacity: ', str(i.wms_control.children[2].value).strip())
             print('style: ', str(i.wms_control.children[3].value).strip())
             print('time: ', str(i.wms_control.children[4].value).strip())
             print('elevation: ', str(i.wms_control.children[5].value).strip())
-
-
-form_layout = Layout(
-    display='flex',
-    flex_flow='row',
-    justify_content='space-between',
-    height='100%',
-    width='100%',
-)
 
 
 def get_map(wms_url, ztwms_controls, crs, center=None, zoom=None):
@@ -70,7 +129,7 @@ def get_map(wms_url, ztwms_controls, crs, center=None, zoom=None):
         min_zoom=1,
         crs=prj_dict,
     )
-    ztwms = ztwms_control(wms_url, crs)
+    ztwms = ztwms_controls[0]
     # m = Map(basemap={}, center=get_center(ztwms.wms), scroll_wheel_zoom=True, crs=prj_dict, zoom=5)
     if not center:
         center = get_center(ztwms.wms)
@@ -99,22 +158,30 @@ def get_map(wms_url, ztwms_controls, crs, center=None, zoom=None):
     return m
 
 
-def placeholder(change):
+
+
+def placeholder2(change):
     global m
     global ztwms_controls
-    ztwms_controls_new = [ztwms_control(i, int(crs_selector.value.split(':')[1])) for i in wms_urls]
-    for i, v in enumerate(ztwms_controls_new):
-        v.wms_control.children[1].value=ztwms_controls[i].wms_control.children[1].value
-        v.wms_control.children[2].value=ztwms_controls[i].wms_control.children[2].value
-        v.wms_control.children[3].value=ztwms_controls[i].wms_control.children[3].value
-        v.wms_control.children[4].value=ztwms_controls[i].wms_control.children[4].value
-        v.wms_control.children[5].value=ztwms_controls[i].wms_control.children[5].value
-    # get selected basemap
-    m = get_map(wms_url, ztwms_controls_new, int(crs_selector.value.split(':')[1]), center=m.center, zoom=m.zoom)
-    ztwms_controls=ztwms_controls_new
-    layers_control = LayersControl(position='topright')
+    global wms_urls
+    # time.sleep(0.2)
+    # ztwms_controls_new = [ztwms_control(i, int(crs_selector.value.split(':')[1])) for i in wms_urls]
 
-    control_box = VBox([i.wms_control for i in ztwms_controls])
+    m = get_basemap(wms_urls[0], int(crs_selector.value.split(':')[1]))
+    ztwms_controls_new = [ztwms_control(wms_url=v, crs=int(crs_selector.value.split(':')[1]), m=m, ipygis_key=str(i))
+                          for i, v in enumerate(wms_urls)]
+
+    m = update_map(m, ztwms_controls_new, int(crs_selector.value.split(':')[1]))
+    ztwms_controls = ztwms_controls_new
+    control_box = VBox([i.wms_control for i in ztwms_controls[::-1]])  ### ?
+    for i, v in enumerate(control_box.children):
+        move_up = Button(description='^', layout=Layout(width='30px', height='30px'))
+        move_up.on_click(reorder_up(m))
+        move_down = Button(description='v', layout=Layout(width='30px', height='30px'))
+        move_down.on_click(reorder_down(m))
+        v.children[0].children += (HBox([move_up,
+                                         move_down]), )
+        print('executed', i)
     map_container = Box([VBox([crs_selector, lonlat_label, control_box, outclick_label]), m], layout=form_layout)
     wrapper = IPyWidget(widget=map_container)
     layout = column([wrapper], sizing_mode='scale_both')
@@ -129,7 +196,7 @@ crs_selector = Dropdown(
     layout=Layout(max_width="280px", max_height="35px"),
 )
 
-crs_selector.observe(placeholder, "value")
+crs_selector.observe(placeholder2, "value")
 
 lonlat_label = HTML()
 outclick_label = HTML()
@@ -137,23 +204,40 @@ outclick_label = HTML()
 init_prj = int(crs_selector.value.split(':')[1])
 
 
+
 def initiate_map(wms_urls, init_prj, form_layout, crs_selector, lonlat_label, outclick_label):
-    ztwms_controls = [ztwms_control(i, init_prj) for i in wms_urls]
+    # ztwms_controls = [ztwms_control(wms_url=v, crs=init_prj) for i,v in enumerate(wms_urls)]
     # get selected basemap
-    m = get_map(wms_url, ztwms_controls, init_prj)
+    m = get_basemap(wms_urls[0], init_prj)
+    ztwms_controls = [ztwms_control(wms_url=v, crs=init_prj, m=m, ipygis_key=str(i)) for i, v in enumerate(wms_urls)]
+    # m = get_map(wms_urls[0], ztwms_controls, init_prj)
+    m = update_map(m, ztwms_controls, init_prj)
     # layers_control = LayersControl(position='topright')
-
-    control_box = VBox([i.wms_control for i in ztwms_controls])
-    map_container = Box([VBox([crs_selector, lonlat_label, control_box, outclick_label]), m], layout=form_layout)
-    wrapper = IPyWidget(widget=map_container)
-    layout = column([wrapper], sizing_mode='scale_both')
-    return m, ztwms_controls, layout
+    # buttons = [move_buttons(m=m, index=i) for i, v in enumerate(wms_urls)]
+    # control_box = VBox([HBox([v.wms_control, buttons[i].buttons_control]) for i,v in enumerate(ztwms_controls[::-1])])
+    control_box = VBox([i.wms_control for i in ztwms_controls[::-1]])
 
 
-# control_box = VBox([i.wms_control for i in ztwms_controls])
 
-# m = get_map(wms_url, ztwms_controls, int(crs_selector.value.split(':')[1]))
+    for i, v in enumerate(control_box.children):
+        move_up = Button(description='^', layout=Layout(width='30px', height='30px'))
+        #move_up.on_click(reorder_up(layer_id=i))
+        move_down = Button(description='v', layout=Layout(width='30px', height='30px'))
+        #move_up = print_button(index=5)
+        #move_down = print_button(index=5)
+        #move_down.on_click(reorder_down(layer_id=i))
+        v.children[0].children += (HBox([move_up,
+                                         move_down]), )
+    map_container = Box([VBox([crs_selector, lonlat_label, control_box, outclick_label]), m],
+                        layout=form_layout)
 
-m, ztwms_controls, layout = initiate_map(wms_urls, init_prj, form_layout, crs_selector, lonlat_label, outclick_label)
+    return m, ztwms_controls, map_container
+
+
+m, ztwms_controls, map_container = initiate_map(wms_urls, init_prj, form_layout, crs_selector, lonlat_label,
+                                                outclick_label)
+
+wrapper = IPyWidget(widget=map_container)
+layout = column([wrapper], sizing_mode='scale_both')
 
 curdoc_element.add_root(layout)

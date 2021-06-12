@@ -2,3 +2,4 @@ owslib
 ipywidgets_bokeh
 ipyleaflet
 bokeh
+# ipyvuetify
