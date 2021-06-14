@@ -32,21 +32,22 @@ def move_layer_down(index, k):
     print(wms_urls)
     if index >= 1 and index <= len(wms_urls):
         wms_urls.insert(index - 1, wms_urls.pop(index))
+        reload_view('')
     else:
         wms_urls
     print(wms_urls)
-    reload_view('')
+
 
 
 def move_layer_up(index, k):
     global wms_urls
     print(wms_urls)
-    if index >= 0 and index <= len(wms_urls) - 1:
+    if index <= len(wms_urls) - 2:
         wms_urls.insert(index + 1, wms_urls.pop(index))
+        reload_view('')
     else:
         wms_urls
     print(wms_urls)
-    reload_view('')
 
 
 def get_basemap(wms_url, crs, center=None, zoom=None):
