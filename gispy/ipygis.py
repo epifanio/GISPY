@@ -84,7 +84,7 @@ class ztwms_control(object):
             # layout=Layout(max_width="380px", max_height="35px")
         )
         header = HBox([layer_header],
-                      # layout=Layout(max_width="380px", max_height="35px")
+                      layout=Layout(min_width="380px", min_height="45px")
                       )
         layer_header.observe(self.update_wms_visibility)
         # layer_footer = HTML()
@@ -165,6 +165,7 @@ class ztwms_control(object):
 
         return VBox(
             [
+                #layer_header,
                 header,
                 layer_selector,
                 opacity_slider,

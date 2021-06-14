@@ -97,6 +97,8 @@ form_layout = Layout(
     justify_content='space-between',
     height='100%',
     width='100%',
+    min_width='400px',
+    min_height='800px',
 )
 
 controlbox_layout = Layout(
@@ -155,6 +157,7 @@ def reload_view(change):
     m.center = center
     ztwms_controls = ztwms_controls_new
     control_box = VBox([i.wms_control for i in ztwms_controls[::-1]])  ### ?
+
     for i, v in enumerate(control_box.children[::-1]):
         move_up = Button(description='^',
                          layout=Layout(width='30px', height='30px'),
@@ -170,9 +173,10 @@ def reload_view(change):
                                         ),
                                    )
         print('executed', i)
-    top_box = buil_top_box(wms_urls)
+
+    # top_box = buil_top_box(wms_urls)
     map_container = Box([VBox([crs_selector,
-                               top_box,
+                               # top_box,
                                lonlat_label,
                                control_box,
                                outclick_label],
@@ -227,9 +231,9 @@ def buil_top_box(wms_urls):
     return VBox(top_box.children[::-1])
 
 
-top_box = buil_top_box(wms_urls)
+# top_box = buil_top_box(wms_urls)
 
-def initiate_map(wms_urls, init_prj, form_layout, crs_selector, lonlat_label, outclick_label, top_box):
+def initiate_map(wms_urls, init_prj, form_layout, crs_selector, lonlat_label, outclick_label): # , top_box
     # get selected basemap
     m = get_basemap(wms_urls[0], init_prj)
     ztwms_controls = [ztwms_control(wms_url=v, crs=init_prj, m=m, ipygis_key=str(i)) for i, v in enumerate(wms_urls)]
@@ -237,6 +241,7 @@ def initiate_map(wms_urls, init_prj, form_layout, crs_selector, lonlat_label, ou
     control_box = VBox([i.wms_control for i in ztwms_controls[::-1]],
                        # layout=controlbox_layout
                        )
+
     for i, v in enumerate(control_box.children[::-1]):
         move_up = Button(description='^',
                          layout=Layout(width='30px', height='30px'),
@@ -250,8 +255,9 @@ def initiate_map(wms_urls, init_prj, form_layout, crs_selector, lonlat_label, ou
                                         # layout=move_layer_layout
                                         ),
                                    )
+
     map_container = Box([VBox([crs_selector,
-                               top_box,
+                               # top_box,
                                lonlat_label,
                                control_box,
                                outclick_label],
@@ -269,7 +275,8 @@ m, ztwms_controls, map_container = initiate_map(wms_urls,
                                                 crs_selector,
                                                 lonlat_label,
                                                 outclick_label,
-                                                top_box)
+                                                #top_box,
+                                                )
 
 wrapper = IPyWidget(widget=map_container)
 layout = column([wrapper], sizing_mode='scale_both')
