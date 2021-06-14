@@ -1,4 +1,4 @@
-from ipygis import get_center, ztwms_control, move_buttons
+from ipygis import get_center, ztwms_control
 from bokeh.plotting import curdoc
 from ipyleaflet import Map, WMSLayer, LayersControl, WidgetControl, basemaps, FullScreenControl, LayersControl, \
     MeasureControl
@@ -7,6 +7,10 @@ from ipywidgets_bokeh import IPyWidget
 from bokeh.layouts import column, row, widgetbox, layout
 from projections import get_common_crs, get_projection
 import functools
+import xml.etree.ElementTree as ET
+from owslib.wms import WebMapService
+
+
 # import ipyvuetify as v
 
 global m
@@ -16,35 +20,34 @@ global wms_urls
 curdoc_element = curdoc()
 args = curdoc_element.session_context.request.arguments
 
-wms_urls = [i.decode() for i in args.get('url')] # [::-1]
+wms_urls = [i.decode() for i in args.get('url')]  # [::-1]
 
 common_crs = get_common_crs(wms_urls)
 
 import ipywidgets as widgets
 
-def move_layer_up(c, x):
+
+def move_layer_down(index, k):
     global wms_urls
-    wms_urls.insert(c-1, wms_urls.pop(c))
+    print(wms_urls)
+    if index >= 1 and index <= len(wms_urls):
+        wms_urls.insert(index - 1, wms_urls.pop(index))
+    else:
+        wms_urls
+    print(wms_urls)
     reload_view('')
 
-def move_layer_down(c, x):
+
+def move_layer_up(index, k):
     global wms_urls
-    wms_urls.insert(c+1, wms_urls.pop(c))
+    print(wms_urls)
+    if index >= 0 and index <= len(wms_urls) - 1:
+        wms_urls.insert(index + 1, wms_urls.pop(index))
+    else:
+        wms_urls
+    print(wms_urls)
     reload_view('')
 
-
-class print_button(widgets.Button):
-    def __init__(self, m=None, index=None):
-        self.button = widgets.Button(description="Click Me!")
-        self.index = index
-
-    def on_button_clicked(self, index):
-        index = self.index
-        print(self.index)
-
-    def get_button(self):
-        self.button.on_click(self.on_button_clicked)
-        return self.button
 
 def get_basemap(wms_url, crs, center=None, zoom=None):
     global m
@@ -95,6 +98,21 @@ form_layout = Layout(
     width='100%',
 )
 
+controlbox_layout = Layout(
+    overflow_y='auto',
+    display='block',
+)
+
+move_layer_layout = Layout(
+    overflow_x='auto',
+    display='block',
+)
+
+move_layer_layout = Layout(
+    width='100px',
+    height='50px',
+    display='block')
+
 
 def handle_interaction(**kwargs):
     # mouseup, mouseover, mousemove, preclick, click
@@ -124,22 +142,44 @@ def reload_view(change):
     global m
     global ztwms_controls
     global wms_urls
+    global top_box
+    zoom = m.zoom
+    center = m.center
     m = get_basemap(wms_urls[0], int(crs_selector.value.split(':')[1]))
     ztwms_controls_new = [ztwms_control(wms_url=v, crs=int(crs_selector.value.split(':')[1]), m=m, ipygis_key=str(i))
                           for i, v in enumerate(wms_urls)]
 
     m = update_map(m, ztwms_controls_new, int(crs_selector.value.split(':')[1]))
+    m.zoom = zoom
+    m.center = center
     ztwms_controls = ztwms_controls_new
     control_box = VBox([i.wms_control for i in ztwms_controls[::-1]])  ### ?
-    for i, v in enumerate(control_box.children):
-        move_up = Button(description='^', layout=Layout(width='30px', height='30px'))
+    for i, v in enumerate(control_box.children[::-1]):
+        move_up = Button(description='^',
+                         layout=Layout(width='30px', height='30px'),
+                         )
         move_up.on_click(functools.partial(move_layer_up, i))
-        move_down = Button(description='v', layout=Layout(width='30px', height='30px'))
+        move_down = Button(description='v',
+                           layout=Layout(width='30px', height='30px'),
+                           )
         move_down.on_click(functools.partial(move_layer_down, i))
         v.children[0].children += (HBox([move_up,
-                                         move_down]), )
+                                         move_down],
+                                        # layout=move_layer_layout
+                                        ),
+                                   )
         print('executed', i)
-    map_container = Box([VBox([crs_selector, lonlat_label, control_box, outclick_label]), m], layout=form_layout)
+    top_box = buil_top_box(wms_urls)
+    map_container = Box([VBox([crs_selector,
+                               top_box,
+                               lonlat_label,
+                               control_box,
+                               outclick_label],
+                              # layout=controlbox_layout
+                              ),
+                         m],
+                        layout=form_layout,
+                        )
     wrapper = IPyWidget(widget=map_container)
     layout = column([wrapper], sizing_mode='scale_both')
     curdoc_element.clear()
@@ -160,28 +200,82 @@ outclick_label = HTML()
 
 init_prj = int(crs_selector.value.split(':')[1])
 
-def initiate_map(wms_urls, init_prj, form_layout, crs_selector, lonlat_label, outclick_label):
+global top_box
+
+
+def buil_top_box(wms_urls):
+    global top_box
+    top_box = VBox([])
+    for i, v in enumerate(wms_urls):
+        wms = WebMapService(v)
+        name = ET.fromstring(wms.getServiceXML().decode()).findall('.//*Layer')[0].findall('.//*Title')[0].text
+
+        move_up = Button(description='^',
+                         layout=Layout(width='30px', height='30px'),
+                         )
+        move_up.on_click(functools.partial(move_layer_up, i))
+        move_down = Button(description='v',
+                           layout=Layout(width='30px', height='30px'),
+                           )
+        move_down.on_click(functools.partial(move_layer_down, i))
+
+        top_box.children += (HBox([HTML(f"{name}"), move_up, move_down],
+                                        # layout=move_layer_layout
+                                        ),
+                                   )
+    return VBox(top_box.children[::-1])
+
+
+top_box = buil_top_box(wms_urls)
+
+def initiate_map(wms_urls, init_prj, form_layout, crs_selector, lonlat_label, outclick_label, top_box):
     # get selected basemap
     m = get_basemap(wms_urls[0], init_prj)
     ztwms_controls = [ztwms_control(wms_url=v, crs=init_prj, m=m, ipygis_key=str(i)) for i, v in enumerate(wms_urls)]
     m = update_map(m, ztwms_controls, init_prj)
-    control_box = VBox([i.wms_control for i in ztwms_controls[::-1]])
-    for i, v in enumerate(control_box.children):
-        move_up = Button(description='^', layout=Layout(width='30px', height='30px'))
+    control_box = VBox([i.wms_control for i in ztwms_controls[::-1]],
+                       # layout=controlbox_layout
+                       )
+    for i, v in enumerate(control_box.children[::-1]):
+        move_up = Button(description='^',
+                         layout=Layout(width='30px', height='30px'),
+                         )
         move_up.on_click(functools.partial(move_layer_up, i))
-        move_down = Button(description='v', layout=Layout(width='30px', height='30px'))
+        move_down = Button(description='v',
+                           layout=Layout(width='30px', height='30px'),
+                           )
         move_down.on_click(functools.partial(move_layer_down, i))
-        v.children[0].children += (HBox([move_up,
-                                         move_down]), )
-    map_container = Box([VBox([crs_selector, lonlat_label, control_box, outclick_label]), m],
-                        layout=form_layout)
+        v.children[0].children += (HBox([move_up, move_down],
+                                        # layout=move_layer_layout
+                                        ),
+                                   )
+    map_container = Box([VBox([crs_selector,
+                               top_box,
+                               lonlat_label,
+                               control_box,
+                               outclick_label],
+                              # layout=controlbox_layout
+                              ),
+                         m],
+                        layout=form_layout,
+                        )
     return m, ztwms_controls, map_container
 
 
-m, ztwms_controls, map_container = initiate_map(wms_urls, init_prj, form_layout, crs_selector, lonlat_label,
-                                                outclick_label)
+m, ztwms_controls, map_container = initiate_map(wms_urls,
+                                                init_prj,
+                                                form_layout,
+                                                crs_selector,
+                                                lonlat_label,
+                                                outclick_label,
+                                                top_box)
 
 wrapper = IPyWidget(widget=map_container)
 layout = column([wrapper], sizing_mode='scale_both')
 
 curdoc_element.add_root(layout)
+
+# http://localhost:5000/gispy? \
+#  url=https://thredds.met.no/thredds/wms/sea/norkyst800m/24h/aggregate_be?SERVICE=WMS&REQUEST=GetCapabilities \
+# &url=https://thredds.met.no/thredds/wms/cmems/si-tac/cmems_obs-si_arc_phy-siconc_nrt_L4-auto_P1D_aggregated?service=WMS&version=1.3.0&request=GetCapabilities \
+# &url=http://nbswms.met.no/thredds/wms_ql/NBS/S1A/2021/05/18/EW/S1A_EW_GRDM_1SDH_20210518T070428_20210518T070534_037939_047A42_65CD.nc?SERVICE=WMS&REQUEST=GetCapabilities
