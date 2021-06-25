@@ -3,6 +3,7 @@ dependencies:
   - owslib
   - ipyleaflet
   - pip
+  - nodejs
   - pip:
     - ipywidgets_bokeh
     - jupyter-server-proxy
